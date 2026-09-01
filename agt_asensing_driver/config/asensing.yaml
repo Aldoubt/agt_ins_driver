@@ -3,3 +3,4 @@ agt_asensing_driver:
     port: /dev/ttyUSB0
     baudrate: 230400
     frame_id: ins_link
+    rtk_fixed_types: [4]

@@ -5,3 +5,7 @@ uint8 num_satellite
 float32 position_std
 float32 heading_std
 bool rtk_fixed
+uint32 gps_week
+uint32 gps_time_ms
+float32 temperature
+uint8 wheel_speed_status

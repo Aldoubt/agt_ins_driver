@@ -61,12 +61,18 @@ std::vector<INSData> ASENSINGParser::feed(
     const int16_t data1 = i16(buffer_, 46), data2 = i16(buffer_, 48), data3 = i16(buffer_, 50);
     switch (buffer_[56]) {
       case 0: d.latitude_std = value(data1); d.longitude_std = value(data2); d.altitude_std = value(data3); break;
+      case 1: d.north_velocity_std = value(data1); d.east_velocity_std = value(data2); d.ground_velocity_std = value(data3); break;
       case 2: d.roll_std = value(data1) * M_PI / 180.0; d.pitch_std = value(data2) * M_PI / 180.0; d.yaw_std = value(data3) * M_PI / 180.0; break;
+      case 22: d.temperature = static_cast<float>(data1 * 200.0 / 32768.0); break;
       case 32: d.position_type = data1; d.num_sv = data2; d.heading_type = data3; d.has_position_status = true; break;
+      case 33: d.wheel_speed_status = static_cast<uint8_t>(data2); break;
       default: break;
     }
-    // Bytes 58..62 are the optional GPS-week extension in the original driver.
+    // GPS time is a 0.25 ms counter in bytes 52..55 of the main packet.
+    d.gps_time_ms = static_cast<uint32_t>(u32(buffer_, 52) * 0.25);
+    // Bytes 58..62 are the GPS-week extension in the original driver.
     if (buffer_.size() >= kExtendedLength && xor_ok(buffer_, kExtendedLength)) {
+      d.gps_week = u32(buffer_, 58);
       buffer_.erase(buffer_.begin(), buffer_.begin() + kExtendedLength);
     } else {
       buffer_.erase(buffer_.begin(), buffer_.begin() + kMainLength);
