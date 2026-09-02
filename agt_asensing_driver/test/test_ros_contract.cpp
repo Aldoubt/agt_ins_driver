@@ -1,8 +1,10 @@
 #include "agt_asensing_driver/ros_conversions.hpp"
 #include <gtest/gtest.h>
+#include <cmath>
 #include <limits>
 
 using agt_asensing_driver::INSData;
+using agt_asensing_driver::make_imu_message;
 using agt_asensing_driver::make_ins_status;
 using agt_asensing_driver::make_nav_sat_fix;
 
@@ -115,4 +117,62 @@ TEST(RosGnssContract, RtkFixedRequiresValidPersistedSolutionStatus)
   const auto status = make_ins_status(
     d, builtin_interfaces::msg::Time{}, "rtk_antenna_link", {4});
   EXPECT_FALSE(status.rtk_fixed);
+}
+
+TEST(RosImuContract, RawModePublishesInertialDataWithoutTrustedOrientation)
+{
+  INSData d;
+  d.gyro << 0.1, -0.2, 0.3;
+  d.accel << 1.0, 2.0, 9.8;
+  d.roll = 0.4;
+  d.pitch = -0.1;
+  d.yaw = 1.2;
+
+  builtin_interfaces::msg::Time stamp;
+  stamp.sec = 321;
+  stamp.nanosec = 654;
+  const auto imu = make_imu_message(d, stamp, "ins_link", false);
+
+  EXPECT_EQ(imu.header.frame_id, "ins_link");
+  EXPECT_EQ(imu.header.stamp.sec, 321);
+  EXPECT_EQ(imu.header.stamp.nanosec, 654u);
+  EXPECT_DOUBLE_EQ(imu.angular_velocity.x, 0.1);
+  EXPECT_DOUBLE_EQ(imu.angular_velocity.y, -0.2);
+  EXPECT_DOUBLE_EQ(imu.angular_velocity.z, 0.3);
+  EXPECT_DOUBLE_EQ(imu.linear_acceleration.x, 1.0);
+  EXPECT_DOUBLE_EQ(imu.linear_acceleration.y, 2.0);
+  EXPECT_DOUBLE_EQ(imu.linear_acceleration.z, 9.8);
+
+  // The sensor orientation convention is not trusted as ROS REP-103 until R3
+  // physical direction tests pass. -1 means orientation estimate unavailable.
+  EXPECT_DOUBLE_EQ(imu.orientation_covariance[0], -1.0);
+
+  // Gyroscope and accelerometer measurements are present; all-zero covariance
+  // means their covariance is unknown, not that the measurements are absent.
+  for (const auto value : imu.angular_velocity_covariance) EXPECT_DOUBLE_EQ(value, 0.0);
+  for (const auto value : imu.linear_acceleration_covariance) EXPECT_DOUBLE_EQ(value, 0.0);
+}
+
+TEST(RosImuContract, OptInDeviceOrientationUsesAttitudeStd)
+{
+  INSData d;
+  d.roll = 0.0;
+  d.pitch = 0.0;
+  d.yaw = M_PI_2;
+  d.roll_std = 0.01;
+  d.pitch_std = 0.02;
+  d.yaw_std = 0.03;
+  d.has_attitude_std = true;
+
+  const auto imu = make_imu_message(
+    d, builtin_interfaces::msg::Time{}, "ins_link", true);
+
+  const double half_sqrt = std::sqrt(0.5);
+  EXPECT_NEAR(imu.orientation.x, 0.0, 1e-12);
+  EXPECT_NEAR(imu.orientation.y, 0.0, 1e-12);
+  EXPECT_NEAR(imu.orientation.z, half_sqrt, 1e-12);
+  EXPECT_NEAR(imu.orientation.w, half_sqrt, 1e-12);
+  EXPECT_NEAR(imu.orientation_covariance[0], 0.0001, 1e-12);
+  EXPECT_NEAR(imu.orientation_covariance[4], 0.0004, 1e-12);
+  EXPECT_NEAR(imu.orientation_covariance[8], 0.0009, 1e-12);
 }
