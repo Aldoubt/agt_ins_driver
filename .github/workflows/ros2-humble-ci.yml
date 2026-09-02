@@ -22,9 +22,38 @@ jobs:
         with:
           required-ros-distributions: humble
 
-      - name: Build and test agt_asensing_driver
-        uses: ros-tooling/action-ros-ci@v0.4
+      - name: Install package dependencies
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          rosdep update
+          rosdep install --from-paths . --ignore-src --rosdistro humble -r -y
+
+      - name: Build agt_asensing_driver
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build \
+            --packages-select agt_asensing_driver \
+            --event-handlers console_direct+
+
+      - name: Test agt_asensing_driver
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test \
+            --packages-select agt_asensing_driver \
+            --event-handlers console_direct+
+          colcon test-result --verbose
+
+      - name: Upload colcon evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          package-name: agt_asensing_driver
-          target-ros2-distro: humble
-          skip-tests: false
+          name: ros2-humble-colcon-evidence
+          if-no-files-found: ignore
+          path: |
+            log/
+            build/agt_asensing_driver/Testing/
+            build/agt_asensing_driver/test_results/
