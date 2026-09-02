@@ -50,7 +50,8 @@ private:
   {
     // R1/R2 deliberately keep ROS receive time as the measurement stamp. GPS
     // week/time remains available in INSStatus but is not converted to UTC here.
-    const auto stamp = now().to_msg();
+    // ROS 2 Humble rclcpp::Time converts directly to builtin_interfaces::msg::Time.
+    const builtin_interfaces::msg::Time stamp = now();
 
     const auto fix = make_nav_sat_fix(d, stamp, gnss_frame_id_);
     fix_->publish(fix);
