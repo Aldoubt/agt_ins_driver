@@ -3,6 +3,7 @@
 #include "agt_asensing_driver/serial_port.hpp"
 #include "agt_asensing_driver/msg/ins_status.hpp"
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
@@ -26,8 +27,10 @@ public:
     baudrate_ = declare_parameter("baudrate", 230400);
     ins_frame_id_ = declare_parameter("ins_frame_id", "ins_link");
     gnss_frame_id_ = declare_parameter("gnss_frame_id", "rtk_antenna_link");
+    use_device_orientation_in_imu_ = declare_parameter("use_device_orientation_in_imu", false);
     rtk_fixed_types_ = declare_parameter<std::vector<int64_t>>("rtk_fixed_types", {4});
     fix_ = create_publisher<sensor_msgs::msg::NavSatFix>("/ins/navsatfix", 10);
+    imu_ = create_publisher<sensor_msgs::msg::Imu>("/ins/imu", 50);
     pose_ = create_publisher<geometry_msgs::msg::PoseStamped>("/ins/pose", 10);
     velocity_ = create_publisher<geometry_msgs::msg::TwistStamped>("/ins/velocity", 10);
     odom_ = create_publisher<nav_msgs::msg::Odometry>("/ins/odom", 10);
@@ -55,6 +58,13 @@ private:
 
     const auto fix = make_nav_sat_fix(d, stamp, gnss_frame_id_);
     fix_->publish(fix);
+
+    // The standard IMU topic always exposes parsed gyro/acceleration. Device
+    // roll/pitch/yaw is opt-in because its physical axis/heading convention must
+    // pass the R3 REP-103 direction tests before downstream systems trust it.
+    const auto imu = make_imu_message(
+      d, stamp, ins_frame_id_, use_device_orientation_in_imu_);
+    imu_->publish(imu);
 
     // These three topics are retained for compatibility. Their full navigation
     // semantics are not part of the accepted R2 contract; consumers should use
@@ -100,11 +110,13 @@ private:
 
   std::string port_, ins_frame_id_, gnss_frame_id_;
   int baudrate_{};
+  bool use_device_orientation_in_imu_{false};
   std::vector<int64_t> rtk_fixed_types_;
   SerialPort serial_;
   ASENSINGParser parser_;
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr velocity_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_;
