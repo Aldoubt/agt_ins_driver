@@ -35,6 +35,16 @@ struct INSData
   uint32_t gps_time_ms{0};
   float temperature{0.0F};
   uint8_t wheel_speed_status{0};
+
+  // Auxiliary groups are transmitted asynchronously by selector. These flags
+  // distinguish "not received yet" from a legitimate numeric zero and remain
+  // valid until the corresponding group is replaced by a later packet.
+  bool has_position_std{false};
+  bool has_velocity_std{false};
+  bool has_attitude_std{false};
   bool has_position_status{false};
+  bool has_gps_week{false};
+  bool has_temperature{false};
+  bool has_wheel_speed_status{false};
 };
 }  // namespace agt_asensing_driver
