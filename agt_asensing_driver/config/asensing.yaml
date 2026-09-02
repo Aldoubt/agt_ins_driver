@@ -4,4 +4,7 @@ agt_asensing_driver:
     baudrate: 230400
     ins_frame_id: ins_link
     gnss_frame_id: rtk_antenna_link
+    # Keep false until R3 physical direction tests prove the device roll/pitch/yaw
+    # convention matches the ROS REP-103 frame used by ins_frame_id.
+    use_device_orientation_in_imu: false
     rtk_fixed_types: [4]
