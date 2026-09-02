@@ -39,5 +39,8 @@ if(BUILD_TESTING)
   target_include_directories(test_ros_contract PRIVATE include)
   target_link_libraries(test_ros_contract Eigen3::Eigen "${cpp_typesupport_target}")
   ament_target_dependencies(test_ros_contract sensor_msgs std_msgs builtin_interfaces)
+
+  ament_add_gtest(test_r3_metrics test/test_r3_metrics.cpp)
+  target_include_directories(test_r3_metrics PRIVATE include)
 endif()
 ament_package()
