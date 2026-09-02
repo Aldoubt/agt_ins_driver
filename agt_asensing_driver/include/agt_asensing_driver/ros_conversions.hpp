@@ -3,6 +3,7 @@
 #include "agt_asensing_driver/ins_data.hpp"
 #include "agt_asensing_driver/msg/ins_status.hpp"
 
+#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <builtin_interfaces/msg/time.hpp>
 
@@ -54,6 +55,58 @@ inline bool valid_coordinates(const INSData & data)
     data.longitude >= -180.0 && data.longitude <= 180.0;
 }
 }  // namespace detail
+
+inline sensor_msgs::msg::Imu make_imu_message(
+  const INSData & data,
+  const builtin_interfaces::msg::Time & stamp,
+  const std::string & ins_frame_id,
+  bool use_device_orientation)
+{
+  sensor_msgs::msg::Imu imu;
+  imu.header.stamp = stamp;
+  imu.header.frame_id = ins_frame_id;
+
+  imu.angular_velocity.x = data.gyro.x();
+  imu.angular_velocity.y = data.gyro.y();
+  imu.angular_velocity.z = data.gyro.z();
+  imu.linear_acceleration.x = data.accel.x();
+  imu.linear_acceleration.y = data.accel.y();
+  imu.linear_acceleration.z = data.accel.z();
+
+  // The parser already converts gyro to rad/s and acceleration to m/s^2.
+  // Their covariance is not supplied by the currently verified protocol, so
+  // zero covariance is retained to mean "unknown covariance" while preserving
+  // the measurements themselves.
+
+  if (!use_device_orientation) {
+    // ASENSING roll/pitch/yaw physical axis and heading conventions have not yet
+    // passed the R3 REP-103 direction tests. Keep the quaternion harmless but
+    // mark orientation as unavailable according to sensor_msgs/Imu semantics.
+    imu.orientation.w = 1.0;
+    imu.orientation_covariance[0] = -1.0;
+    return imu;
+  }
+
+  const double cr = std::cos(data.roll * 0.5);
+  const double sr = std::sin(data.roll * 0.5);
+  const double cp = std::cos(data.pitch * 0.5);
+  const double sp = std::sin(data.pitch * 0.5);
+  const double cy = std::cos(data.yaw * 0.5);
+  const double sy = std::sin(data.yaw * 0.5);
+
+  imu.orientation.w = cr * cp * cy + sr * sp * sy;
+  imu.orientation.x = sr * cp * cy - cr * sp * sy;
+  imu.orientation.y = cr * sp * cy + sr * cp * sy;
+  imu.orientation.z = cr * cp * sy - sr * sp * cy;
+
+  if (detail::valid_attitude_std(data)) {
+    imu.orientation_covariance[0] = data.roll_std * data.roll_std;
+    imu.orientation_covariance[4] = data.pitch_std * data.pitch_std;
+    imu.orientation_covariance[8] = data.yaw_std * data.yaw_std;
+  }
+
+  return imu;
+}
 
 inline sensor_msgs::msg::NavSatFix make_nav_sat_fix(
   const INSData & data,
