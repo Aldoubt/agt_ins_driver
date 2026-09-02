@@ -19,13 +19,21 @@ rosidl_generate_interfaces(
   ${PROJECT_NAME}
   "msg/INSStatus.msg"
   DEPENDENCIES std_msgs)
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
 add_executable(asensing_node src/asensing_node.cpp src/asensing_parser.cpp src/serial_port.cpp)
 target_include_directories(asensing_node PRIVATE include)
-target_link_libraries(asensing_node Eigen3::Eigen)
+target_link_libraries(asensing_node Eigen3::Eigen "${cpp_typesupport_target}")
 ament_target_dependencies(asensing_node rclcpp sensor_msgs std_msgs builtin_interfaces geometry_msgs nav_msgs tf2 tf2_geometry_msgs)
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(asensing_node "${cpp_typesupport_target}")
-install(TARGETS asensing_node DESTINATION lib/${PROJECT_NAME})
+
+add_executable(r3_hardware_monitor src/r3_hardware_monitor.cpp)
+target_include_directories(r3_hardware_monitor PRIVATE include)
+target_link_libraries(r3_hardware_monitor "${cpp_typesupport_target}")
+ament_target_dependencies(r3_hardware_monitor rclcpp sensor_msgs std_msgs builtin_interfaces geometry_msgs)
+
+install(TARGETS asensing_node r3_hardware_monitor DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/r3_drive_validation.sh DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 ament_export_dependencies(rosidl_default_runtime std_msgs builtin_interfaces)
