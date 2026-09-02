@@ -1,5 +1,6 @@
 #include "agt_asensing_driver/asensing_parser.hpp"
 #include <gtest/gtest.h>
+#include <cmath>
 
 using agt_asensing_driver::ASENSINGParser;
 
@@ -25,6 +26,35 @@ void set_checksum(std::vector<uint8_t> & frame, std::size_t length)
 {
   frame[length - 1] = 0;
   for (std::size_t i = 0; i < length - 1; ++i) frame[length - 1] ^= frame[i];
+}
+
+std::vector<uint8_t> make_selector_frame(
+  uint8_t selector, int16_t data1, int16_t data2, int16_t data3)
+{
+  std::vector<uint8_t> frame(58, 0);
+  frame[0] = 0xbd; frame[1] = 0xdb; frame[2] = 0x0b;
+  frame[39] = 3;
+  frame[56] = selector;
+  set_i16(frame, 46, data1);
+  set_i16(frame, 48, data2);
+  set_i16(frame, 50, data3);
+  set_checksum(frame, 58);
+  return frame;
+}
+
+std::vector<uint8_t> make_extended_status_frame(uint32_t gps_week)
+{
+  std::vector<uint8_t> frame(63, 0);
+  frame[0] = 0xbd; frame[1] = 0xdb; frame[2] = 0x0b;
+  frame[39] = 3;
+  frame[56] = 32;
+  set_i16(frame, 46, 4);
+  set_i16(frame, 48, 12);
+  set_i16(frame, 50, 5);
+  set_checksum(frame, 58);
+  set_u32(frame, 58, gps_week);
+  set_checksum(frame, 63);
+  return frame;
 }
 }  // namespace
 
@@ -78,6 +108,76 @@ TEST(ASENSINGParser, ParsesNavigationAndGpsMetadataFromExtendedFrame)
   EXPECT_EQ(result[0].position_type, 4);
   EXPECT_EQ(result[0].num_sv, 12);
   EXPECT_EQ(result[0].heading_type, 5);
+}
+
+TEST(ASENSINGParser, PersistsAuxiliaryMetadataAcrossSelectorFrames)
+{
+  ASENSINGParser parser;
+
+  const auto position_std = parser.feed(make_selector_frame(0, 0, 69, 110));
+  ASSERT_EQ(position_std.size(), 1u);
+  EXPECT_TRUE(position_std[0].has_position_std);
+  EXPECT_FALSE(position_std[0].has_position_status);
+  const double expected_latitude_std = std::exp(0.0);
+  const double expected_longitude_std = std::exp(0.69);
+  const double expected_altitude_std = std::exp(1.10);
+
+  const auto status = parser.feed(make_selector_frame(32, 4, 12, 5));
+  ASSERT_EQ(status.size(), 1u);
+  EXPECT_TRUE(status[0].has_position_std);
+  EXPECT_TRUE(status[0].has_position_status);
+  EXPECT_NEAR(status[0].latitude_std, expected_latitude_std, 1e-12);
+  EXPECT_NEAR(status[0].longitude_std, expected_longitude_std, 1e-12);
+  EXPECT_NEAR(status[0].altitude_std, expected_altitude_std, 1e-12);
+  EXPECT_EQ(status[0].position_type, 4);
+  EXPECT_EQ(status[0].num_sv, 12);
+  EXPECT_EQ(status[0].heading_type, 5);
+
+  const auto velocity_std = parser.feed(make_selector_frame(1, 10, 20, 30));
+  ASSERT_EQ(velocity_std.size(), 1u);
+  EXPECT_TRUE(velocity_std[0].has_position_std);
+  EXPECT_TRUE(velocity_std[0].has_position_status);
+  EXPECT_TRUE(velocity_std[0].has_velocity_std);
+  EXPECT_EQ(velocity_std[0].position_type, 4);
+  EXPECT_NEAR(velocity_std[0].latitude_std, expected_latitude_std, 1e-12);
+  EXPECT_NEAR(velocity_std[0].north_velocity_std, std::exp(0.10), 1e-12);
+
+  const auto attitude_std = parser.feed(make_selector_frame(2, 40, 50, 60));
+  ASSERT_EQ(attitude_std.size(), 1u);
+  EXPECT_TRUE(attitude_std[0].has_position_std);
+  EXPECT_TRUE(attitude_std[0].has_position_status);
+  EXPECT_TRUE(attitude_std[0].has_velocity_std);
+  EXPECT_TRUE(attitude_std[0].has_attitude_std);
+  EXPECT_EQ(attitude_std[0].position_type, 4);
+}
+
+TEST(ASENSINGParser, PersistsGpsWeekAfterExtendedFrame)
+{
+  ASENSINGParser parser;
+  const auto with_week = parser.feed(make_extended_status_frame(2234));
+  ASSERT_EQ(with_week.size(), 1u);
+  EXPECT_TRUE(with_week[0].has_gps_week);
+  EXPECT_EQ(with_week[0].gps_week, 2234u);
+
+  const auto next = parser.feed(make_selector_frame(0, 0, 0, 0));
+  ASSERT_EQ(next.size(), 1u);
+  EXPECT_TRUE(next[0].has_gps_week);
+  EXPECT_EQ(next[0].gps_week, 2234u);
+}
+
+TEST(ASENSINGParser, TracksOptionalMetadataValidity)
+{
+  ASENSINGParser parser;
+  const auto temperature = parser.feed(make_selector_frame(22, 100, 0, 0));
+  ASSERT_EQ(temperature.size(), 1u);
+  EXPECT_TRUE(temperature[0].has_temperature);
+  EXPECT_FALSE(temperature[0].has_wheel_speed_status);
+
+  const auto wheel = parser.feed(make_selector_frame(33, 0, 7, 0));
+  ASSERT_EQ(wheel.size(), 1u);
+  EXPECT_TRUE(wheel[0].has_temperature);
+  EXPECT_TRUE(wheel[0].has_wheel_speed_status);
+  EXPECT_EQ(wheel[0].wheel_speed_status, 7u);
 }
 
 TEST(ASENSINGParser, RejectsBadChecksum)
