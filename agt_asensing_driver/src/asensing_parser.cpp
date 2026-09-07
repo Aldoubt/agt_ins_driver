@@ -42,7 +42,9 @@ std::vector<INSData> ASENSINGParser::feed(
     if (buffer_.size() < kMainLength) break;
     if (!xor_ok(buffer_, kMainLength)) { buffer_.erase(buffer_.begin()); continue; }
 
-    INSData d;
+    // Position type, satellite count and other auxiliary fields are not
+    // present in every main frame. Preserve the last complete state.
+    INSData d = state_;
     d.roll = i16(buffer_, 3) * (360.0 / 32768.0) * M_PI / 180.0;
     d.pitch = i16(buffer_, 5) * (360.0 / 32768.0) * M_PI / 180.0;
     d.yaw = i16(buffer_, 7) * (360.0 / 32768.0) * M_PI / 180.0;
@@ -73,11 +75,14 @@ std::vector<INSData> ASENSINGParser::feed(
     // Bytes 58..62 are the GPS-week extension in the original driver.
     if (buffer_.size() >= kExtendedLength && xor_ok(buffer_, kExtendedLength)) {
       d.gps_week = u32(buffer_, 58);
+      d.raw_frame.assign(buffer_.begin(), buffer_.begin() + kExtendedLength);
       buffer_.erase(buffer_.begin(), buffer_.begin() + kExtendedLength);
     } else {
+      d.raw_frame.assign(buffer_.begin(), buffer_.begin() + kMainLength);
       buffer_.erase(buffer_.begin(), buffer_.begin() + kMainLength);
     }
     result.push_back(d);
+    state_ = d;
   }
   return result;
 }

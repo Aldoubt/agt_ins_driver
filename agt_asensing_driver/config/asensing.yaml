@@ -3,4 +3,5 @@ asensing_driver:
     port: /dev/ttyUSB0
     baudrate: 460800
     frame_id: ins_link
-    rtk_fixed_types: [4]
+    # ASENSING position types: 48=L1_INT, 49=WIDE_INT, 50=NARROW_INT.
+    rtk_fixed_types: [48, 49, 50]

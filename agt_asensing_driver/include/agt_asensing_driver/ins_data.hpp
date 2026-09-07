@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include <Eigen/Core>
 
 namespace agt_asensing_driver
@@ -36,5 +37,6 @@ struct INSData
   float temperature{0.0F};
   uint8_t wheel_speed_status{0};
   bool has_position_status{false};
+  std::vector<uint8_t> raw_frame;
 };
 }  // namespace agt_asensing_driver

@@ -78,6 +78,34 @@ TEST(ASENSINGParser, ParsesNavigationAndGpsMetadataFromExtendedFrame)
   EXPECT_EQ(result[0].position_type, 4);
   EXPECT_EQ(result[0].num_sv, 12);
   EXPECT_EQ(result[0].heading_type, 5);
+  EXPECT_EQ(result[0].raw_frame.size(), 63u);
+}
+
+TEST(ASENSINGParser, PersistsAsynchronousPositionStatus)
+{
+  std::vector<uint8_t> metadata(58, 0);
+  metadata[0] = 0xbd; metadata[1] = 0xdb; metadata[2] = 0x0b;
+  metadata[56] = 32;
+  set_i16(metadata, 46, 4);   // position type
+  set_i16(metadata, 48, 19);  // satellite count
+  set_i16(metadata, 50, 5);   // heading type
+  set_checksum(metadata, 58);
+
+  std::vector<uint8_t> ordinary(58, 0);
+  ordinary[0] = 0xbd; ordinary[1] = 0xdb; ordinary[2] = 0x0b;
+  ordinary[39] = 4;
+  ordinary[52] = 1;
+  set_checksum(ordinary, 58);
+
+  metadata.insert(metadata.end(), ordinary.begin(), ordinary.end());
+  const auto result = ASENSINGParser().feed(metadata);
+  ASSERT_EQ(result.size(), 2u);
+  EXPECT_EQ(result[0].position_type, 4);
+  EXPECT_EQ(result[0].num_sv, 19);
+  EXPECT_EQ(result[0].heading_type, 5);
+  EXPECT_EQ(result[1].position_type, 4);
+  EXPECT_EQ(result[1].num_sv, 19);
+  EXPECT_EQ(result[1].heading_type, 5);
 }
 
 TEST(ASENSINGParser, RejectsBadChecksum)

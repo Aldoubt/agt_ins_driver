@@ -6,6 +6,7 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <std_msgs/msg/u_int8_multi_array.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <chrono>
@@ -31,6 +32,7 @@ public:
     velocity_ = create_publisher<geometry_msgs::msg::TwistStamped>("/ins/velocity", 10);
     odom_ = create_publisher<nav_msgs::msg::Odometry>("/ins/odom", 10);
     status_ = create_publisher<INSStatus>("/ins/status", 10);
+    raw_frame_ = create_publisher<std_msgs::msg::UInt8MultiArray>("/ins/raw_frame", 10);
     timer_ = create_wall_timer(10ms, std::bind(&ASENSINGNode::poll, this));
   }
 private:
@@ -46,6 +48,9 @@ private:
   void publish(const INSData & d)
   {
     const auto stamp = now();
+    std_msgs::msg::UInt8MultiArray raw;
+    raw.data = d.raw_frame;
+    raw_frame_->publish(raw);
     sensor_msgs::msg::NavSatFix fix; fix.header.stamp = stamp; fix.header.frame_id = frame_id_;
     fix.status.status = d.ins_status == 0 ? sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX : sensor_msgs::msg::NavSatStatus::STATUS_FIX;
     fix.status.service = sensor_msgs::msg::NavSatStatus::SERVICE_GPS;
@@ -88,6 +93,7 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_; rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr velocity_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_; rclcpp::Publisher<INSStatus>::SharedPtr status_;
+  rclcpp::Publisher<std_msgs::msg::UInt8MultiArray>::SharedPtr raw_frame_;
 };
 }
 int main(int argc, char ** argv) { rclcpp::init(argc, argv); rclcpp::spin(std::make_shared<agt_asensing_driver::ASENSINGNode>()); rclcpp::shutdown(); return 0; }
