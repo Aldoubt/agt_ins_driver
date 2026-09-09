@@ -6,10 +6,14 @@ ROS 2 Humble INS abstraction driver. The first supported device is ASENSING INS.
 
 ```bash
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install
+colcon build --symlink-install --packages-select agt_asensing_driver
 source install/setup.bash
 ros2 launch agt_asensing_driver asensing.launch.py
 ```
+
+The repository also keeps the original ROS1/catkin driver as reference code.
+If you build the whole workspace without `--packages-select`, colcon may try to
+build that ROS1 package and fail while looking for `catkin`.
 
 The driver supports ASENSING INS on ROS 2 Humble and publishes:
 
@@ -20,6 +24,7 @@ The driver supports ASENSING INS on ROS 2 Humble and publishes:
 | `/ins/velocity` | `geometry_msgs/TwistStamped` |
 | `/ins/odom` | `nav_msgs/Odometry` |
 | `/ins/status` | `agt_asensing_driver/INSStatus` |
+| `/ins/rtk_indicator` | `std_msgs/String` |
 | `/ins/raw_frame` | `std_msgs/UInt8MultiArray` |
 
 The status message retains GPS week/time, temperature, wheel-speed status,
@@ -27,6 +32,23 @@ solution types, satellite count, and standard deviations. According to the
 ASENSING protocol, position types `48`, `49`, and `50` are fixed solutions;
 these are configured by default through `rtk_fixed_types` in
 `config/asensing.yaml`.
+
+The launch file also starts a simple RTK indicator node. It subscribes to
+`/ins/status`, prints a colored terminal status, and publishes
+`/ins/rtk_indicator`:
+
+| Indicator | Meaning |
+| --- | --- |
+| `FIXED` | RTK fixed solution, matching `rtk_fixed_types` |
+| `NOT_FIXED` | INS data is present, but RTK is not fixed |
+| `STALE` | `/ins/status` has stopped updating for more than 2 seconds |
+| `NO_DATA` | no `/ins/status` message has been received yet |
+
+Check it directly with:
+
+```bash
+ros2 topic echo /ins/rtk_indicator
+```
 
 The intended integration path is:
 

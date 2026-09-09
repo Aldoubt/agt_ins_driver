@@ -1,0 +1,1 @@
+This is a ROS1/catkin reference driver. Ignore it when building the ROS2 workspace with colcon.

@@ -5,4 +5,18 @@ import os
 
 def generate_launch_description():
     config = os.path.join(get_package_share_directory('agt_asensing_driver'), 'config', 'asensing.yaml')
-    return LaunchDescription([Node(package='agt_asensing_driver', executable='asensing_node', name='asensing_driver', output='screen', parameters=[config])])
+    return LaunchDescription([
+        Node(
+            package='agt_asensing_driver',
+            executable='asensing_node',
+            name='asensing_driver',
+            output='screen',
+            parameters=[config],
+        ),
+        Node(
+            package='agt_asensing_driver',
+            executable='rtk_indicator_node',
+            name='rtk_indicator',
+            output='screen',
+        ),
+    ])
