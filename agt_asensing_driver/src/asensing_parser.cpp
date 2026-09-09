@@ -42,9 +42,12 @@ std::vector<INSData> ASENSINGParser::feed(
     if (buffer_.size() < kMainLength) break;
     if (!xor_ok(buffer_, kMainLength)) { buffer_.erase(buffer_.begin()); continue; }
 
-    // Position type, satellite count and other auxiliary fields are not
-    // present in every main frame. Preserve the last complete state.
+    // Auxiliary blocks are sent asynchronously. Start from the last complete
+    // state, then overwrite all fields carried by this packet.
     INSData d = state_;
+    const bool has_extended_frame = buffer_.size() >= kExtendedLength && xor_ok(buffer_, kExtendedLength);
+    const auto frame_length = has_extended_frame ? kExtendedLength : kMainLength;
+    d.raw_frame.assign(buffer_.begin(), buffer_.begin() + frame_length);
     d.roll = i16(buffer_, 3) * (360.0 / 32768.0) * M_PI / 180.0;
     d.pitch = i16(buffer_, 5) * (360.0 / 32768.0) * M_PI / 180.0;
     d.yaw = i16(buffer_, 7) * (360.0 / 32768.0) * M_PI / 180.0;
@@ -59,30 +62,61 @@ std::vector<INSData> ASENSINGParser::feed(
     d.east_velocity = i16(buffer_, 35) * 100.0 / 32768.0;
     d.ground_velocity = i16(buffer_, 37) * 100.0 / 32768.0;
     d.ins_status = buffer_[39] & 0x0f;
+
     const auto value = [](int16_t x) { return std::exp(static_cast<double>(x) / 100.0); };
     const int16_t data1 = i16(buffer_, 46), data2 = i16(buffer_, 48), data3 = i16(buffer_, 50);
     switch (buffer_[56]) {
-      case 0: d.latitude_std = value(data1); d.longitude_std = value(data2); d.altitude_std = value(data3); break;
-      case 1: d.north_velocity_std = value(data1); d.east_velocity_std = value(data2); d.ground_velocity_std = value(data3); break;
-      case 2: d.roll_std = value(data1) * M_PI / 180.0; d.pitch_std = value(data2) * M_PI / 180.0; d.yaw_std = value(data3) * M_PI / 180.0; break;
-      case 22: d.temperature = static_cast<float>(data1 * 200.0 / 32768.0); break;
-      case 32: d.position_type = data1; d.num_sv = data2; d.heading_type = data3; d.has_position_status = true; break;
-      case 33: d.wheel_speed_status = static_cast<uint8_t>(data2); break;
-      default: break;
+      case 0:
+        d.latitude_std = value(data1);
+        d.longitude_std = value(data2);
+        d.altitude_std = value(data3);
+        d.has_position_std = true;
+        break;
+      case 1:
+        d.north_velocity_std = value(data1);
+        d.east_velocity_std = value(data2);
+        d.ground_velocity_std = value(data3);
+        d.has_velocity_std = true;
+        break;
+      case 2:
+        d.roll_std = value(data1) * M_PI / 180.0;
+        d.pitch_std = value(data2) * M_PI / 180.0;
+        d.yaw_std = value(data3) * M_PI / 180.0;
+        d.has_attitude_std = true;
+        break;
+      case 22:
+        d.temperature = static_cast<float>(data1 * 200.0 / 32768.0);
+        d.has_temperature = true;
+        break;
+      case 32:
+        d.position_type = static_cast<uint8_t>(data1);
+        d.num_sv = static_cast<uint8_t>(data2);
+        d.heading_type = static_cast<uint8_t>(data3);
+        d.has_position_status = true;
+        break;
+      case 33:
+        d.wheel_speed_status = static_cast<uint8_t>(data2);
+        d.has_wheel_speed_status = true;
+        break;
+      default:
+        break;
     }
-    // GPS time is a 0.25 ms counter in bytes 52..55 of the main packet.
+
+    // GPS time is a 0.25 ms counter in bytes 52..55 of every main packet.
     d.gps_time_ms = static_cast<uint32_t>(u32(buffer_, 52) * 0.25);
-    // Bytes 58..62 are the GPS-week extension in the original driver.
-    if (buffer_.size() >= kExtendedLength && xor_ok(buffer_, kExtendedLength)) {
+
+    // Bytes 58..62 are the GPS-week extension in the original driver. A main
+    // packet without this extension retains the most recently validated week.
+    if (has_extended_frame) {
       d.gps_week = u32(buffer_, 58);
-      d.raw_frame.assign(buffer_.begin(), buffer_.begin() + kExtendedLength);
+      d.has_gps_week = true;
       buffer_.erase(buffer_.begin(), buffer_.begin() + kExtendedLength);
     } else {
-      d.raw_frame.assign(buffer_.begin(), buffer_.begin() + kMainLength);
       buffer_.erase(buffer_.begin(), buffer_.begin() + kMainLength);
     }
-    result.push_back(d);
+
     state_ = d;
+    result.push_back(d);
   }
   return result;
 }

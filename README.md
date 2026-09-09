@@ -1,6 +1,34 @@
 # agt_ins_driver
 
-ROS 2 Humble INS abstraction driver. The first supported device is ASENSING INS.
+ROS 2 Humble INS/GNSS abstraction driver. The first supported device is ASENSING INS.
+
+## Active GNSS/RTK Contract Work
+
+Active branch:
+
+```text
+feat/rtabmap-gnss-contract
+```
+
+Current state:
+
+- R1 parser auxiliary-state persistence: **SOFTWARE VERIFIED**;
+- R2 `/ins/navsatfix` + `/ins/status` contract: **SOFTWARE VERIFIED**;
+- standard `/ins/imu`: **SOFTWARE VERIFIED**, device fused orientation remains opt-in pending real physical convention checks;
+- R3 field monitoring/tooling: **SOFTWARE VERIFIED**;
+- R3 real receiver/vehicle acceptance: **PENDING**;
+- final consumer SHA/tag: **NOT FROZEN**.
+
+Start here:
+
+- [`RTK_GNSS_CONTRACT.md`](RTK_GNSS_CONTRACT.md) — current contract, gates and freeze policy;
+- [`AGENTS.md`](AGENTS.md) — hard rules for Codex/agentic sensor-driver development;
+- [`docs/rtk-gnss-contract/R3_DRIVE_VALIDATION.md`](docs/rtk-gnss-contract/R3_DRIVE_VALIDATION.md) — one-command field monitoring and rosbag workflow;
+- [`docs/rtk-gnss-contract/R3_CODEX_FIELD_PROMPT.md`](docs/rtk-gnss-contract/R3_CODEX_FIELD_PROMPT.md) — read-only Codex field-observer prompt;
+- [`docs/rtk-gnss-contract/records/R03_HARDWARE_VALIDATION.md`](docs/rtk-gnss-contract/records/R03_HARDWARE_VALIDATION.md) — durable hardware acceptance record;
+- [`docs/rtk-gnss-contract/CODEX_PHASE_PROMPTS.md`](docs/rtk-gnss-contract/CODEX_PHASE_PROMPTS.md) — R0-R3 implementation/review prompts.
+
+The branch SHA is intentionally **not frozen** until real-data/hardware R3 evidence supports a stable consumer version.
 
 ## Build and run
 
@@ -8,32 +36,40 @@ ROS 2 Humble INS abstraction driver. The first supported device is ASENSING INS.
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install --packages-select agt_asensing_driver
 source install/setup.bash
+colcon test --packages-select agt_asensing_driver
+colcon test-result --verbose
+
 ros2 launch agt_asensing_driver asensing.launch.py
 ```
 
 The repository also keeps the original ROS1/catkin driver as reference code.
-If you build the whole workspace without `--packages-select`, colcon may try to
-build that ROS1 package and fail while looking for `catkin`.
+That directory contains `COLCON_IGNORE`, so ROS2 colcon builds skip it.
 
-The driver supports ASENSING INS on ROS 2 Humble and publishes:
+## Published interfaces
 
-| Topic | Type |
-| --- | --- |
-| `/ins/navsatfix` | `sensor_msgs/NavSatFix` |
-| `/ins/pose` | `geometry_msgs/PoseStamped` |
-| `/ins/velocity` | `geometry_msgs/TwistStamped` |
-| `/ins/odom` | `nav_msgs/Odometry` |
-| `/ins/status` | `agt_asensing_driver/INSStatus` |
-| `/ins/rtk_indicator` | `std_msgs/String` |
-| `/ins/raw_frame` | `std_msgs/UInt8MultiArray` |
+| Topic | Type | Contract status |
+| --- | --- | --- |
+| `/ins/navsatfix` | `sensor_msgs/NavSatFix` | R2 software-verified GNSS position contract; real receiver R3 pending |
+| `/ins/status` | `agt_asensing_driver/INSStatus` | R2 software-verified GNSS/RTK quality contract; vendor enum verification remains R3 evidence |
+| `/ins/rtk_indicator` | `std_msgs/String` | simple operator-facing RTK connection/fix indicator |
+| `/ins/imu` | `sensor_msgs/Imu` | gyro/accel software-verified; device fused orientation disabled by default until physical convention R3 checks |
+| `/ins/pose` | `geometry_msgs/PoseStamped` | compatibility/experimental; orientation-only today, not an accepted full pose contract |
+| `/ins/velocity` | `geometry_msgs/TwistStamped` | compatibility/diagnostic; current north/east/ground navigation-frame semantics are not body-frame velocity |
+| `/ins/odom` | `nav_msgs/Odometry` | compatibility/experimental; no accepted local position origin, not a runtime odometry source |
+| `/ins/raw_frame` | `std_msgs/UInt8MultiArray` | validated ASENSING frame bytes for debugging and bag comparison |
 
-The status message retains GPS week/time, temperature, wheel-speed status,
-solution types, satellite count, and standard deviations. According to the
-ASENSING protocol, position types `48`, `49`, and `50` are fixed solutions;
-these are configured by default through `rtk_fixed_types` in
-`config/asensing.yaml`.
+Default relevant parameters:
 
-The launch file also starts a simple RTK indicator node. It subscribes to
+```yaml
+ins_frame_id: ins_link
+gnss_frame_id: rtk_antenna_link
+rtk_fixed_types: [48, 49, 50]
+use_device_orientation_in_imu: false
+```
+
+`rtk_fixed_types` is configurable because the exact ASENSING solution enum must be checked against evidence for the real device. Do not equate generic `NavSatFix.STATUS_FIX` with RTK fixed.
+
+The launch file starts a simple RTK indicator node. It subscribes to
 `/ins/status`, prints a colored terminal status, and publishes
 `/ins/rtk_indicator`:
 
@@ -50,66 +86,49 @@ Check it directly with:
 ros2 topic echo /ins/rtk_indicator
 ```
 
-The intended integration path is:
+`use_device_orientation_in_imu` stays false until real level/roll/pitch/yaw tests verify or explicitly map the vendor orientation convention to ROS REP-103.
 
-```text
-agt_ins_driver -> robot_localization -> GTSAM GPSFactor -> FAST-LIO2 global optimization
-```
+## Field validation
 
-The serial protocol parser is independent of ROS and retains the original ASENSING
-frame header, offsets, lengths, and XOR checksums.
-
-## rosbag data collection
-
-`/ins/raw_frame` contains each validated ASENSING frame as raw bytes. A normal
-frame has 58 bytes; a frame with the GPS-week extension has 63 bytes. The topic
-is suitable for comparing the ROS2 parser with the original ROS1 driver or the
-vendor upper computer.
-
-Record raw frames together with the decoded data:
+If this package should own the ASENSING serial driver during the test:
 
 ```bash
-source /opt/ros/humble/setup.bash
-source /home/yangxuan/ros2_ws/install/setup.bash
-
-ros2 bag record \
-  /ins/raw_frame \
-  /ins/status \
-  /ins/navsatfix \
-  /ins/pose \
-  /ins/velocity \
-  /ins/odom \
-  /rosout \
-  -o asensing_check
+ros2 run agt_asensing_driver r3_drive_validation.sh \
+  --label greenhouse_rtk_01 \
+  --output-root ~/agt_r3_runs \
+  --static-window 60
 ```
 
-Inspect and replay the recording:
+If the navigation runtime already owns the serial device, do **not** open it twice:
 
 ```bash
-ros2 bag info asensing_check
-ros2 bag play asensing_check
-ros2 topic echo /ins/raw_frame
+ros2 run agt_asensing_driver r3_drive_validation.sh \
+  --no-driver \
+  --label greenhouse_rtk_runtime_01
 ```
 
-When reviewing a bag, compare `num_satellite`, `position_type`,
-`rtk_fixed`, the GPS time, and the raw frame bytes. Position types `48`, `49`,
-and `50` are fixed solutions; `16` is single-point positioning.
+The workflow never sends robot motion commands. It runs the read-only monitor and rosbag recording and continuously writes `report.json` plus `report.md`. Keep the vehicle stationary for the initial sampling window, wait for RTK quality to stabilize before beginning the controlled drive, and stop the vehicle before any deliberate reconnect or hardware manipulation.
 
-## ROS1 reference driver
+## Repository boundary
 
-The original ROS1 driver is included at:
+The receiver performs its own INS/GNSS fusion; this package parses and standardizes the receiver output. It does not add a second RTK+IMU fusion backend.
 
 ```text
-ASENSING_INS_ROS1_Driver_V1.02(1)/ASENSING_INS_Driver_V1.02/
+ASENSING receiver
+  internal GNSS/RTK + IMU/INS fusion
+          |
+          v
+agt_ins_driver
+          |
+          +-- /ins/navsatfix
+          +-- /ins/status
+          +-- /ins/imu
+          +-- compatibility/diagnostic outputs
+          |
+          v
+consumer-selected mapping / localization / navigation backend
 ```
 
-The ROS1 node is:
+`agt_ins_driver` does not own RTAB-Map, FAST-LIO2, GTSAM, Nav2, HMI, mission logic, robot-specific static transforms or chassis safety logic.
 
-```text
-ASENSING_INS_ROS1_Driver_V1.02(1)/ASENSING_INS_Driver_V1.02/src/ASENSING_INS_node.cpp
-```
-
-Its message definition and protocol notes are in `msg/ASENSING.msg` and the
-PDF under the same ROS1 directory. The ROS1 package publishes the combined
-`ASENSING_INS` message; the ROS2 package publishes standard ROS messages plus
-`/ins/status` and `/ins/raw_frame`.
+The serial protocol parser is independent of ROS and retains verified frame header, offsets, lengths, scaling and XOR behavior unless a protocol change is supported by evidence and regression tests.

@@ -1,0 +1,59 @@
+name: ROS 2 Humble CI
+
+on:
+  push:
+    branches:
+      - feat/rtabmap-gnss-contract
+  pull_request:
+
+concurrency:
+  group: ros2-humble-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      - name: Install package dependencies
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          rosdep update
+          rosdep install --from-paths . --ignore-src --rosdistro humble -r -y
+
+      - name: Build agt_asensing_driver
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build \
+            --packages-select agt_asensing_driver \
+            --event-handlers console_direct+
+
+      - name: Test agt_asensing_driver
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test \
+            --packages-select agt_asensing_driver \
+            --event-handlers console_direct+
+          colcon test-result --verbose
+
+      - name: Upload colcon evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros2-humble-colcon-evidence
+          if-no-files-found: ignore
+          path: |
+            log/
+            build/agt_asensing_driver/Testing/
+            build/agt_asensing_driver/test_results/

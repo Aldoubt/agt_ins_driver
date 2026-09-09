@@ -85,8 +85,14 @@ private:
   {
     std::ostringstream ss;
     ss << "pos_type=" << static_cast<int>(status.position_type)
-       << " sats=" << static_cast<int>(status.num_satellite)
-       << " pos_std=" << std::fixed << std::setprecision(3) << status.position_std
+       << " sats=" << static_cast<int>(status.num_satellite);
+    if (status.position_std_valid) {
+      ss << " std_enu=(" << std::fixed << std::setprecision(3) << status.east_std
+         << "," << status.north_std << "," << status.up_std << ")";
+    } else {
+      ss << " std_enu=n/a";
+    }
+    ss
        << " heading_type=" << static_cast<int>(status.heading_type)
        << " heading_std=" << std::fixed << std::setprecision(3) << status.heading_std;
     return ss.str();

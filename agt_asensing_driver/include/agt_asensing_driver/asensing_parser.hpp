@@ -15,7 +15,6 @@ public:
 
 private:
   std::vector<uint8_t> buffer_;
-  // Auxiliary metadata groups are transmitted asynchronously.
   INSData state_;
 };
 }  // namespace agt_asensing_driver
