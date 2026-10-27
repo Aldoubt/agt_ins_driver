@@ -188,7 +188,7 @@ Only after review of that evidence may a consumer-facing candidate SHA/tag be pr
 | R2 ROS GNSS/status contract | SOFTWARE VERIFIED | conversion tests + `R02_ROS_CONTRACT.md` |
 | Standard `/ins/imu` mapping | SOFTWARE VERIFIED | RED→GREEN contract tests; orientation remains hardware-gated |
 | R3 metric/monitor tooling | SOFTWARE VERIFIED | metric RED→GREEN tests + Humble build/test of field monitor |
-| R3 real receiver/vehicle validation | NOT RUN | `R03_HARDWARE_VALIDATION.md` remains NOT RUN |
+| R3 real receiver/vehicle validation | PARTIAL; ACCEPTANCE PENDING | 2026-10-27 serial/data probe; fixed-position quality and full R3 checks pending |
 | Final SHA/tag freeze | NOT ALLOWED YET | hardware R3 required |
 
 ## Relationship to RTAB-Map runtime work
@@ -225,3 +225,5 @@ Never relabel software/CI evidence as vehicle validation.
 5. `docs/rtk-gnss-contract/R3_CODEX_FIELD_PROMPT.md` for local Codex observation
 
 Do not use navigation-runtime implementation concerns to justify protocol shortcuts here.
+
+2026-10-27 field update: [460800 serial probe and standalone usage](docs/rtk-gnss-contract/records/R03_20261027_460800_FIELD_PROBE.md). This validates a baudrate/configuration path and preserves pending hardware gates.

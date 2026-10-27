@@ -110,3 +110,5 @@ consumer-selected mapping / localization / navigation backend
 `agt_ins_driver` does not own RTAB-Map, FAST-LIO2, GTSAM, Nav2, HMI, mission logic, robot-specific static transforms or chassis safety logic.
 
 The serial protocol parser is independent of ROS and retains verified frame header, offsets, lengths, scaling and XOR behavior unless a protocol change is supported by evidence and regression tests.
+
+For the vehicle receiver observed2026-10-27, use explicit `--baudrate 460800` and the correct serial port in the R3 workflow. See [field probe and exact command](docs/rtk-gnss-contract/records/R03_20261027_460800_FIELD_PROBE.md). Position quality is not yet accepted as a centimetre reference.

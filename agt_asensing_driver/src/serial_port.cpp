@@ -20,6 +20,7 @@ bool SerialPort::open(const std::string & port, int baudrate)
   if (baudrate == 9600) speed = B9600; else if (baudrate == 19200) speed = B19200;
   else if (baudrate == 38400) speed = B38400; else if (baudrate == 57600) speed = B57600;
   else if (baudrate == 115200) speed = B115200;
+  else if (baudrate == 460800) speed = B460800;
   else if (baudrate != 230400) { close(); return false; }
   cfsetispeed(&options, speed); cfsetospeed(&options, speed);
   options.c_cflag |= (CLOCAL | CREAD);

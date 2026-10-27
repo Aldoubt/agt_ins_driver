@@ -1,0 +1,34 @@
+{
+  "protocol": "ASENSING BD DB 0B, XOR verified",
+  "model": "specific model not recorded in repository",
+  "baudrate": 460800,
+  "observation_seconds": 28.17077946662903,
+  "fix_count": 2848,
+  "status_count": 2847,
+  "usable_covariance_fix_count": 2817,
+  "fix_receive_rate_hz": 99.96173529155699,
+  "max_receive_gap_s": 0.010676145553588867,
+  "raw_position_types": [
+    16
+  ],
+  "raw_heading_types": [
+    50
+  ],
+  "rtk_fixed_count": 0,
+  "last_satellites": 24,
+  "reported_enu_std_m_median": [
+    0.3828928768634796,
+    0.37531110644340515,
+    0.5325918197631836
+  ],
+  "observed_north_east_std_m": [
+    0.004682376984772227,
+    0.022258363546256064
+  ],
+  "observed_north_east_peak_to_peak_m": [
+    0.011131949209416398,
+    0.07164931850723263
+  ],
+  "observation_stationary_independently_verified": false,
+  "assessment": "NOT_READY_AS_18CM_REFERENCE"
+}

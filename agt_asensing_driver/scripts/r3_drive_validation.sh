@@ -2,6 +2,8 @@
 set -euo pipefail
 
 WITH_DRIVER=1
+SERIAL_PORT="/dev/ttyUSB0"
+SERIAL_BAUDRATE="230400"
 OUTPUT_ROOT="${HOME}/agt_r3_runs"
 SESSION_LABEL="r3_drive"
 STATIC_WINDOW_SEC="60"
@@ -12,6 +14,8 @@ usage() {
 Usage: r3_drive_validation.sh [options]
 
 Options:
+  --port PATH                 Serial device (default: /dev/ttyUSB0)
+  --baudrate RATE             Serial baudrate (default: 230400; supports 460800)
   --no-driver                 Do not launch asensing_driver (use when runtime already owns the serial device)
   --output-root DIR           Root directory for test runs (default: ~/agt_r3_runs)
   --label NAME                Session label (default: r3_drive)
@@ -26,6 +30,8 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-driver) WITH_DRIVER=0; shift ;;
+    --port) SERIAL_PORT="$2"; shift 2 ;;
+    --baudrate) SERIAL_BAUDRATE="$2"; shift 2 ;;
     --output-root) OUTPUT_ROOT="$2"; shift 2 ;;
     --label) SESSION_LABEL="$2"; shift 2 ;;
     --static-window) STATIC_WINDOW_SEC="$2"; shift 2 ;;
@@ -34,6 +40,24 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+# ROS parameter typing distinguishes YAML integers from doubles. Canonicalize
+# user values such as --static-window 60 before passing them to the monitor.
+normalize_seconds() {
+  python3 - "$1" <<'PYTIME'
+import math
+import sys
+try:
+    value = float(sys.argv[1])
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError()
+except ValueError:
+    sys.exit('time windows must be finite positive seconds')
+print(repr(value))
+PYTIME
+}
+STATIC_WINDOW_SEC="$(normalize_seconds "$STATIC_WINDOW_SEC")"
+SNAPSHOT_PERIOD_SEC="$(normalize_seconds "$SNAPSHOT_PERIOD_SEC")"
 
 if ! command -v ros2 >/dev/null 2>&1; then
   echo "ros2 is not in PATH. Source ROS 2 Humble and this workspace first." >&2
@@ -50,6 +74,8 @@ run_id=${RUN_ID}
 session_label=${SESSION_LABEL}
 start_time=$(date --iso-8601=seconds)
 with_driver=${WITH_DRIVER}
+serial_port=${SERIAL_PORT}
+serial_baudrate=${SERIAL_BAUDRATE}
 static_window_sec=${STATIC_WINDOW_SEC}
 snapshot_period_sec=${SNAPSHOT_PERIOD_SEC}
 ros_distro=${ROS_DISTRO:-unknown}
@@ -94,7 +120,7 @@ trap 'exit 130' INT TERM
 
 if [[ "$WITH_DRIVER" -eq 1 ]]; then
   echo "Starting ASENSING driver..."
-  ros2 launch agt_asensing_driver asensing.launch.py >"${RUN_DIR}/driver.log" 2>&1 &
+  ros2 launch agt_asensing_driver asensing.launch.py port:="${SERIAL_PORT}" baudrate:="${SERIAL_BAUDRATE}" >"${RUN_DIR}/driver.log" 2>&1 &
   DRIVER_PID=$!
   sleep 2
 fi

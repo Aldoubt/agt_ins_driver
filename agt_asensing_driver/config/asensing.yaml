@@ -1,4 +1,4 @@
-agt_asensing_driver:
+asensing_driver:
   ros__parameters:
     port: /dev/ttyUSB0
     baudrate: 230400

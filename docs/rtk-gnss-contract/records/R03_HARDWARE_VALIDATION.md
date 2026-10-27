@@ -1,6 +1,6 @@
 # R03 Hardware Validation Record
 
-Status: **NOT RUN — HARDWARE EVIDENCE REQUIRED**
+Status: **PARTIAL HARDWARE EVIDENCE — FULL ACCEPTANCE PENDING**
 
 This file is the durable R3 acceptance record. Do not mark it PASS from CI, simulation, rosbag replay alone, or the monitor's automatic `EVIDENCE_ONLY` label.
 
@@ -124,3 +124,7 @@ Required reviewer notes:
 - Do not promote `/ins/odom` to runtime odometry from this test.
 - Do not promote device orientation until physical convention checks pass.
 - Do not freeze a SHA/tag until hardware evidence and unresolved defects are reviewed.
+
+## 2026-10-27 bounded field observation
+
+See [460800 field probe](R03_20261027_460800_FIELD_PROBE.md). Valid serial/ROS output was observed, but centimetre positioning and full R3 acceptance are not established.
